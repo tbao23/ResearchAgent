@@ -81,9 +81,12 @@ public static class DocumentLoader
         return sb.ToString();
     }
 
-    private static void ExtractText(IEnumerable<CObject> objects, StringBuilder sb)
+    private static void ExtractText(CSequence objects, StringBuilder sb)
     {
-        foreach (var obj in objects)
+        // CSequence's generic IEnumerable<CObject>.GetEnumerator() throws
+        // NotImplementedException in PdfSharpCore; only the non-generic
+        // IEnumerable is implemented, so iterate through that instead.
+        foreach (CObject obj in (System.Collections.IEnumerable)objects)
         {
             if (obj is COperator op)
             {
