@@ -8,6 +8,7 @@ public class AiSettings
     public string AgentName { get; set; } = "RegulatoryAssistant";
     public string Instructions { get; set; } = "";
     public int LoadTimeToLiveSeconds { get; set; } = 3600;
+    public int MaxOutputTokens { get; set; } = 2048;
 }
 
 public class CorpusSettings

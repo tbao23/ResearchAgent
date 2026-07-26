@@ -18,17 +18,19 @@ public class CorpusChatEngine
 {
     private readonly TextIndex _index;
     private readonly AIAgent _agent;
+    private readonly ChatClientAgentRunOptions _runOptions;
 
     public IReadOnlyList<DocumentSummary> Documents { get; }
     public string CorpusDirectory { get; }
     public int ChunkCount => _index.ChunkCount;
 
-    private CorpusChatEngine(TextIndex index, AIAgent agent, IReadOnlyList<DocumentSummary> documents, string corpusDir)
+    private CorpusChatEngine(TextIndex index, AIAgent agent, IReadOnlyList<DocumentSummary> documents, string corpusDir, int maxOutputTokens)
     {
         _index = index;
         _agent = agent;
         Documents = documents;
         CorpusDirectory = corpusDir;
+        _runOptions = new ChatClientAgentRunOptions(new ChatOptions { MaxOutputTokens = maxOutputTokens });
     }
 
     /// <summary>
@@ -85,7 +87,7 @@ public class CorpusChatEngine
             .AsIChatClient()
             .AsAIAgent(name: ai.AgentName, instructions: ai.Instructions);
 
-        return new CorpusChatEngine(index, agent, documents, corpusDir);
+        return new CorpusChatEngine(index, agent, documents, corpusDir, ai.MaxOutputTokens);
     }
 
     public ChatTurn Ask(string question, CancellationToken ct)
@@ -115,7 +117,7 @@ public class CorpusChatEngine
         string prompt,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
-        await foreach (AgentResponseUpdate update in _agent.RunStreamingAsync(prompt, cancellationToken: ct))
+        await foreach (AgentResponseUpdate update in _agent.RunStreamingAsync(prompt, options: _runOptions, cancellationToken: ct))
         {
             if (!string.IsNullOrEmpty(update.Text))
                 yield return update.Text;
