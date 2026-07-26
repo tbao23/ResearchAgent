@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="DocumentChatBot.csproj" />
+  <Project Path="src/DocumentChatBot.Core/DocumentChatBot.Core.csproj" />
+  <Project Path="src/DocumentChatBot.Console/DocumentChatBot.Console.csproj" />
+  <Project Path="src/DocumentChatBot.Web/DocumentChatBot.Web.csproj" />
 </Solution>

@@ -17,3 +17,6 @@ Thumbs.db
 
 # Document corpus (private data, not source)
 data/
+
+# Vendored client-side libraries (scaffolded, not source)
+**/wwwroot/lib/

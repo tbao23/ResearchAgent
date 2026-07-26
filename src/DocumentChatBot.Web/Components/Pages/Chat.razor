@@ -1,0 +1,138 @@
+@page "/"
+@rendermode InteractiveServer
+@using DocumentChatBot
+@inject CorpusChatEngine Engine
+
+<PageTitle>Regulatory Document Assistant</PageTitle>
+
+<div class="app-shell">
+    <aside class="corpus-sidebar">
+        <h2>Corpus</h2>
+        <p class="corpus-meta">@Engine.Documents.Count documents / @Engine.ChunkCount chunks</p>
+        <ul class="corpus-list">
+            @foreach (var doc in Engine.Documents)
+            {
+                <li class="@(doc.Superseded ? "superseded" : "")">
+                    <div class="doc-info">
+                        <span class="doc-name">@doc.FileName</span>
+                        <span class="doc-meta">
+                            @if (!string.IsNullOrEmpty(doc.Date))
+                            {
+                                <span>@doc.Date</span>
+                            }
+                            @if (doc.Superseded)
+                            {
+                                <span class="doc-badge">Superseded</span>
+                            }
+                        </span>
+                    </div>
+                    <div class="doc-actions">
+                        <a href="@CorpusUrl(doc.FileName)" target="_blank" title="View @doc.FileName" aria-label="View @doc.FileName">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </a>
+                        <a href="@CorpusUrl(doc.FileName)" download title="Download @doc.FileName" aria-label="Download @doc.FileName">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 3v12m0 0-4-4m4 4 4-4M4 19h16" />
+                            </svg>
+                        </a>
+                    </div>
+                </li>
+            }
+        </ul>
+    </aside>
+
+    <main class="chat-panel">
+        <header class="chat-header">
+            <h1>Regulatory Document Assistant</h1>
+        </header>
+
+        <div class="chat-transcript">
+            @foreach (var message in _messages)
+            {
+                <div class="message @message.Role">
+                    <div class="bubble">
+                        <p>@message.Text</p>
+                        @if (message.Sources is { Count: > 0 } && message != _streamingMessage)
+                        {
+                            <div class="sources">
+                                <span>Sources:</span>
+                                <ul>
+                                    @foreach (var source in message.Sources)
+                                    {
+                                        <li>@source</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <form class="chat-input" @onsubmit="SendAsync" @onsubmit:preventDefault>
+            <input @bind="_input" @bind:event="oninput"
+                   placeholder="Ask about the corpus..."
+                   disabled="@(_streamingMessage is not null)" />
+            <button type="submit" disabled="@(_streamingMessage is not null || string.IsNullOrWhiteSpace(_input))">
+                Send
+            </button>
+        </form>
+    </main>
+</div>
+
+@code {
+    private readonly List<ChatMessageVm> _messages = new();
+    private string _input = "";
+    private ChatMessageVm? _streamingMessage;
+
+    private static string CorpusUrl(string fileName) => $"corpus/{Uri.EscapeDataString(fileName)}";
+
+    private async Task SendAsync()
+    {
+        var question = _input.Trim();
+        if (string.IsNullOrEmpty(question) || _streamingMessage is not null)
+            return;
+
+        _input = "";
+        _messages.Add(new ChatMessageVm("user", question));
+
+        var assistantMessage = new ChatMessageVm("assistant", "");
+        _messages.Add(assistantMessage);
+        _streamingMessage = assistantMessage;
+
+        var turn = Engine.Ask(question, CancellationToken.None);
+        assistantMessage.Sources = turn.Sources;
+
+        try
+        {
+            await foreach (var chunk in turn.TextStream)
+            {
+                assistantMessage.Text += chunk;
+                StateHasChanged();
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            assistantMessage.Text += $"\n[Could not reach Foundry Local: {ex.Message}]";
+        }
+        catch (Exception ex)
+        {
+            assistantMessage.Text += $"\n[Unexpected error: {ex.Message}]";
+        }
+        finally
+        {
+            _streamingMessage = null;
+            StateHasChanged();
+        }
+    }
+
+    private class ChatMessageVm(string role, string text)
+    {
+        public string Role { get; } = role;
+        public string Text { get; set; } = text;
+        public IReadOnlyList<string>? Sources { get; set; }
+    }
+}
