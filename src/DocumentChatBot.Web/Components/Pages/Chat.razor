@@ -1,5 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
+@using System.Diagnostics
 @using DocumentChatBot
 @inject CorpusChatEngine Engine
 
@@ -108,11 +109,21 @@
 
         try
         {
+            var lastRender = Stopwatch.GetTimestamp();
             await foreach (var chunk in turn.TextStream)
             {
                 assistantMessage.Text += chunk;
-                StateHasChanged();
+
+                // Streaming one StateHasChanged per token can flood the SignalR
+                // circuit faster than the client can acknowledge render batches,
+                // which fatally disconnects it. Throttle to a fixed interval instead.
+                if (Stopwatch.GetElapsedTime(lastRender).TotalMilliseconds >= 50)
+                {
+                    lastRender = Stopwatch.GetTimestamp();
+                    StateHasChanged();
+                }
             }
+            StateHasChanged();
         }
         catch (HttpRequestException ex)
         {
